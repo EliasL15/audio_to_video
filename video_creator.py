@@ -7,11 +7,15 @@ import re
 from collections import Counter
 from enum import Enum
 from dataclasses import dataclass
+from dotenv import load_dotenv
 
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 import speech_recognition as sr
 import g4f
+
+# Load environment variables
+load_dotenv()
 
 # ----- Definitions for missing types and functions -----
 
@@ -240,8 +244,11 @@ class VideoCreator:
             print("No clips to concatenate. Video creation aborted.")
 
 def main():
-    # Replace with your Pexels API key
-    PEXELS_API_KEY = 'tJFXw3gwYhKpTqIVWjLSsbCJrmAswYI9wiGucEn35YjFrDpLyEUtdedS'
+    # Load Pexels API key from environment variable
+    PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
+    if not PEXELS_API_KEY:
+        print("Error: PEXELS_API_KEY not found in environment variables")
+        return
     
     audio_path = input('Enter the path to your MP3 file: ')
     if not os.path.exists(audio_path):

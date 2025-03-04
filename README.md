@@ -2,16 +2,6 @@
 
 A Python-based tool that creates dynamic videos by matching audio segments with relevant video clips from Pexels. The tool transcribes audio segments, extracts keywords, and automatically downloads matching video content to create a cohesive video presentation.
 
-## Features
-
-- Audio segmentation into 8-second intervals
-- Speech-to-text transcription using Google's Speech Recognition
-- Intelligent keyword extraction using GPT-4 (with fallback to text analysis)
-- Automatic video content sourcing from Pexels
-- Support for both landscape (1280x720) and portrait (720x1280) video formats
-- Automatic video looping and trimming to match audio duration
-- Fallback to neutral video content when specific matches aren't found
-
 ## Prerequisites
 
 - Python 3.9 or higher
@@ -20,29 +10,27 @@ A Python-based tool that creates dynamic videos by matching audio segments with 
 
 ## Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd sotiriou
-```
-
-2. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-```
-
-3. Install the required packages:
+1. Clone the repository
+2. Install the required dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
 ## Configuration
 
-1. Replace the `PEXELS_API_KEY` in `video_creator.py` with your own API key:
-```python
-PEXELS_API_KEY = 'your-api-key-here'
+1. Create a `.env` file in the project root directory:
+```bash
+touch .env
 ```
+
+2. Add your Pexels API key to the `.env` file:
+```
+PEXELS_API_KEY=your-api-key-here
+```
+
+Make sure to replace `your-api-key-here` with your actual Pexels API key.
+
+**Note**: Never commit your `.env` file to version control. The repository includes a `.gitignore` file that already excludes it.
 
 ## Usage
 
@@ -63,20 +51,6 @@ python video_creator.py
 
 5. The output video will be saved as `output.mp4` in the project directory.
 
-## Video Aspect Ratio
-
-By default, the tool creates landscape videos (1280x720). To create portrait videos, modify the `VideoAspect` parameter when creating the `VideoCreator` instance:
-
-```python
-creator = VideoCreator(audio_path, PEXELS_API_KEY, video_dir, video_aspect=VideoAspect.portrait)
-```
-
-## Project Structure
-
-- `video_creator.py`: Main script containing the VideoCreator class and logic
-- `downloaded_videos/`: Directory where downloaded video clips are stored
-- `requirements.txt`: List of Python package dependencies
-
 ## Dependencies
 
 - pydub (0.25.1): Audio processing
@@ -86,21 +60,14 @@ creator = VideoCreator(audio_path, PEXELS_API_KEY, video_dir, video_aspect=Video
 - pexels-api (1.0.1): Pexels API integration
 - pytube (15.0.0): YouTube integration
 - requests (2.31.0): HTTP requests
+- python-dotenv: Environment variable management
 
 ## Error Handling
 
-The tool includes robust error handling for:
-- Invalid API credentials
-- Rate limiting
-- Failed video downloads
-- Transcription errors
-- Video processing issues
-
-## Notes
-
-- Downloaded videos are cached in the `downloaded_videos` directory to prevent redundant downloads
-- The tool uses a fallback keyword system when specific matches aren't found
-- Temporary audio segments are automatically cleaned up after processing
+If you encounter the error "PEXELS_API_KEY not found in environment variables", make sure:
+1. You have created the `.env` file in the project root
+2. The file contains the correct API key in the format specified above
+3. The python-dotenv package is installed
 
 ## License
 

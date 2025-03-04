@@ -5,3 +5,4 @@ g4f==0.4.7.7
 pexels-api==1.0.1
 pytube==15.0.0
 requests==2.31.0
+dotenv==1.0.0
