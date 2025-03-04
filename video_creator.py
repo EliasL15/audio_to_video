@@ -78,12 +78,13 @@ class VideoCreator:
         if not os.path.exists(self.video_dir):
             os.makedirs(self.video_dir)
         self.recognizer = sr.Recognizer()
+        self.interval = 8000  # 8 seconds in milliseconds
         
     def split_audio(self):
         """Split audio into 8-second intervals."""
         audio = AudioSegment.from_mp3(self.audio_path)
         duration = len(audio)
-        interval = 8000  # 8 seconds in milliseconds
+        interval = self.interval  # 8 seconds in milliseconds
         segments = []
         
         for start in range(0, duration, interval):
@@ -152,7 +153,7 @@ class VideoCreator:
 
     def _download_video_by_keyword(self, keyword):
         headers = {"Authorization": self.pexels_api_key}
-        url = f"https://api.pexels.com/videos/search?query={keyword}&per_page=10&min_duration=15"
+        url = f"https://api.pexels.com/videos/search?query={keyword}&per_page=10&min_duration={self.interval // 1000}"
         response = requests.get(url, headers=headers)
         
         if response.status_code == 200:
