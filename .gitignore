@@ -1,0 +1,5 @@
+.env
+/venv
+__pycache__/
+/har_and_cookies
+/downloaded_videos
