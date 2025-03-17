@@ -90,18 +90,16 @@ def scale_and_crop_to_fill(clip, new_size):
 
 
 class VideoCreator:
-    def __init__(self, video_path, pexels_api_key, pixabay_api_key=None,
-                 video_dir='downloaded_videos', video_aspect=VideoAspect.landscape, interactive=False):
+    def __init__(self, video_path, pexels_api_key, video_dir='downloaded_videos',
+                 video_aspect=VideoAspect.landscape, interactive=False):
         """
         video_path: Path to your speaking video.
         pexels_api_key: API key for Pexels.
-        pixabay_api_key: API key for Pixabay.
         video_aspect: VideoAspect.landscape or VideoAspect.portrait.
         interactive: If True, allow interactive adjustment of cue timing and keyword.
         """
         self.video_path = video_path
         self.pexels_api_key = pexels_api_key  
-        self.pixabay_api_key = "pixabay_api_key" # your pixabay api key here 
         self.video_dir = video_dir
         self.video_aspect = video_aspect
         self.interactive = interactive
@@ -237,52 +235,6 @@ class VideoCreator:
             print("Invalid Pexels API key. Please check your credentials.")
         return video_paths
 
-    def download_top_videos_pixabay(self, keyword, n=5):
-        """
-        Download up to the top n videos from Pixabay for the given keyword.
-        Returns a list of local video file paths.
-        """
-        if not self.pixabay_api_key:
-            print("No Pixabay API key provided.")
-            return []
-        url = f"https://pixabay.com/api/videos/?key={self.pixabay_api_key}&q={keyword}&per_page={n}"
-        response = requests.get(url)
-        video_paths = []
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("hits"):
-                desired_width, desired_height = self.video_aspect.to_resolution()
-                for hit in data["hits"]:
-                    video_id = str(hit.get("id"))
-                    local_path = os.path.join(self.video_dir, f'pixabay_video_{video_id}.mp4')
-                    if os.path.exists(local_path):
-                        video_paths.append(local_path)
-                        continue
-                    videos = hit.get("videos", {})
-                    chosen_video_url = None
-                    # Try available resolutions in order of preference.
-                    for quality in ["large", "medium", "small"]:
-                        video_info = videos.get(quality)
-                        if video_info:
-                            w = video_info.get("width", 0)
-                            h = video_info.get("height", 0)
-                            if w >= desired_width and h >= desired_height:
-                                chosen_video_url = video_info.get("url")
-                                break
-                    if chosen_video_url:
-                        video_response = requests.get(chosen_video_url, stream=True)
-                        if video_response.status_code == 200:
-                            with open(local_path, 'wb') as f:
-                                for chunk in video_response.iter_content(chunk_size=1024):
-                                    if chunk:
-                                        f.write(chunk)
-                            video_paths.append(local_path)
-            else:
-                print("No videos returned from Pixabay for keyword:", keyword)
-        else:
-            print("Error fetching videos from Pixabay API. Status code:", response.status_code)
-        return video_paths
-
     def download_pexels_video(self, keyword):
         videos = self.download_top_videos(keyword, n=5)
         if videos:
@@ -298,6 +250,24 @@ class VideoCreator:
             current += self.interval_sec
         print("Fixed segments:", segments)
         return segments
+
+    # def adjust_cue_timing(self, audio_path, candidate_time, search_window=1000):
+    #     try:
+    #         audio_seg = AudioSegment.from_wav(audio_path)
+    #     except Exception as e:
+    #         print("Error loading audio for cue adjustment:", e)
+    #         return candidate_time
+    #     candidate_ms = candidate_time * 1000
+    #     start_search = max(0, candidate_ms - search_window)
+    #     segment = audio_seg[start_search:candidate_ms]
+    #     silent_parts = silence.detect_silence(segment, min_silence_len=300, silence_thresh=audio_seg.dBFS - 16)
+    #     if silent_parts:
+    #         last_silence = silent_parts[-1]
+    #         new_candidate_ms = start_search + last_silence[1]
+    #         adjusted_time = new_candidate_ms / 1000.0
+    #         print(f"Adjusted cue timing from {candidate_time:.2f}s to {adjusted_time:.2f}s based on silence detection.")
+    #         return adjusted_time
+    #     return candidate_time
 
     def create_video(self):
         """
@@ -362,75 +332,70 @@ class VideoCreator:
                         final_clips.append(interval_clip)
                         continue
                     else:
+                        # If only a new keyword is provided, use fixed cue timing.
                         keyword = new_input.strip()
 
-                # Interactive: fetch both Pexels and Pixabay videos (5 each) and combine them.
-                skip_cue = False
-                while True:
-                    pexels_videos = self.download_top_videos(keyword, n=5)
-                    pixabay_videos = self.download_top_videos_pixabay(keyword, n=5)
-                    combined_videos = pexels_videos + pixabay_videos
-                    if combined_videos:
-                        print("Top video candidates:")
-                        for i, path in enumerate(combined_videos):
-                            # Mark source based on filename.
-                            source = "Pexels" if "pixabay" not in os.path.basename(path).lower() else "Pixabay"
-                            print(f"[{i}] ({source}) {path}")
-                        choice = input("Enter the number of the video to use, type 'change' to change keyword, or type 'none' to skip cue (or press Enter for first): ").strip()
-                        if choice.lower() in ['none', 'skip', 'no video']:
-                            print(f"Segment {idx}: No cue will be inserted. Using original segment.")
-                            skip_cue = True
+            cue_start = fixed_cue_start
+            cue_duration = fixed_cue_duration
+            print(f"Segment {idx}: Inserting cue with keyword '{keyword}' from {cue_start:.1f}s to {cue_start + cue_duration:.1f}s.")
+
+            stock_video_path = None
+            if keyword:
+                if self.interactive:
+                    skip_cue = False
+                    while True:
+                        top_videos = self.download_top_videos(keyword, n=5)
+                        if top_videos:
+                            print("Top video candidates:")
+                            for i, path in enumerate(top_videos):
+                                print(f"[{i}] {path}")
+                            choice = input("Enter the number of the video to use, type 'change' to change keyword, or type 'none' to skip cue (or press Enter for first): ").strip()
+                            if choice.lower() in ['none', 'skip', 'no video']:
+                                print(f"Segment {idx}: No cue will be inserted. Using original segment.")
+                                skip_cue = True
+                                break
+                            if choice.lower() in ['change', 'c']:
+                                keyword = input("Enter new keyword: ").strip()
+                                continue
+                            try:
+                                index = int(choice) if choice != "" else 0
+                                if 0 <= index < len(top_videos):
+                                    stock_video_path = top_videos[index]
+                                else:
+                                    print("Invalid choice; defaulting to first candidate.")
+                                    stock_video_path = top_videos[0]
+                            except:
+                                stock_video_path = top_videos[0]
                             break
-                        if choice.lower() in ['change', 'c']:
-                            keyword = input("Enter new keyword: ").strip()
-                            continue
-                        try:
-                            index = int(choice) if choice != "" else 0
-                            if 0 <= index < len(combined_videos):
-                                stock_video_path = combined_videos[index]
-                            else:
-                                print("Invalid choice; defaulting to first candidate.")
-                                stock_video_path = combined_videos[0]
-                        except:
-                            stock_video_path = combined_videos[0]
-                        break
-                    else:
-                        print("No candidate videos found for keyword:", keyword)
-                        change = input("Would you like to change the keyword? (y/n): ").strip().lower()
-                        if change == 'y':
-                            keyword = input("Enter new keyword: ").strip()
-                            continue
                         else:
-                            break
-                if skip_cue:
-                    final_clips.append(interval_clip)
-                    continue
-            else:
-                # Non-interactive: try Pexels first then Pixabay.
-                pexels_video = self.download_pexels_video(keyword)
-                pixabay_videos = self.download_top_videos_pixabay(keyword, n=5)
-                if pexels_video:
-                    stock_video_path = pexels_video
-                elif pixabay_videos:
-                    stock_video_path = pixabay_videos[0]
+                            print("No candidate videos found for keyword:", keyword)
+                            change = input("Would you like to change the keyword? (y/n): ").strip().lower()
+                            if change == 'y':
+                                keyword = input("Enter new keyword: ").strip()
+                                continue
+                            else:
+                                break
+                    if skip_cue:
+                        final_clips.append(interval_clip)
+                        continue
                 else:
-                    stock_video_path = None
+                    stock_video_path = self.download_pexels_video(keyword)
 
             stock_clip = None
             if stock_video_path:
                 try:
                     stock_clip = VideoFileClip(stock_video_path)
                     # If the stock clip is shorter than the cue duration, repeat it
-                    if stock_clip.duration < fixed_cue_duration:
-                        repeats = math.ceil(fixed_cue_duration / stock_clip.duration)
+                    if stock_clip.duration < cue_duration:
+                        repeats = math.ceil(cue_duration / stock_clip.duration)
                         stock_clip = concatenate_videoclips([stock_clip] * repeats)
-                    stock_clip = stock_clip.subclip(0, fixed_cue_duration)
+                    stock_clip = stock_clip.subclip(0, cue_duration)
 
                     # Fill the entire frame without black bars
                     stock_clip = scale_and_crop_to_fill(stock_clip, target_size)
 
                     # Set the audio for the stock clip to match the segment’s audio portion
-                    audio_stock = interval_clip.audio.subclip(fixed_cue_start, fixed_cue_start + fixed_cue_duration)
+                    audio_stock = interval_clip.audio.subclip(cue_start, cue_start + cue_duration)
                     stock_clip = stock_clip.set_audio(audio_stock)
                 except Exception as e:
                     print(f"Error processing stock footage for segment {idx}: {e}")
@@ -439,26 +404,39 @@ class VideoCreator:
                 print(f"No stock footage found for keyword '{keyword}' in segment {idx}.")
 
             clips_to_concat = []
-            if fixed_cue_start > 0:
-                clips_to_concat.append(interval_clip.subclip(0, fixed_cue_start))
+            if cue_start > 0:
+                clips_to_concat.append(interval_clip.subclip(0, cue_start))
             if stock_clip:
                 clips_to_concat.append(stock_clip)
             else:
                 # If no stock clip, just use the original portion
-                clips_to_concat.append(interval_clip.subclip(fixed_cue_start, fixed_cue_start + fixed_cue_duration))
-            remaining = segment_length - (fixed_cue_start + fixed_cue_duration)
+                clips_to_concat.append(interval_clip.subclip(cue_start, cue_start + cue_duration))
+            remaining = segment_length - (cue_start + cue_duration)
             if remaining > 0:
-                clips_to_concat.append(interval_clip.subclip(fixed_cue_start + fixed_cue_duration, segment_length))
+                clips_to_concat.append(interval_clip.subclip(cue_start + cue_duration, segment_length))
             composite_clip = concatenate_videoclips(clips_to_concat)
             final_clips.append(composite_clip)
 
         if final_clips:
             try:
                 final_video = concatenate_videoclips(final_clips, method="compose")
-                # Here you might want to write out the final video to a file:
-                # final_video.write_videofile("output.mp4", fps=24)
+                final_video.write_videofile('output.mp4', codec='libx264', audio_codec='aac')
+                # Clean up downloaded videos after successful video creation
+                if os.path.exists(self.video_dir) and os.path.isdir(self.video_dir):
+                    for file in os.listdir(self.video_dir):
+                        file_path = os.path.join(self.video_dir, file)
+                        try:
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                        except Exception as e:
+                            print(f"Error removing file {file_path}: {e}")
+                    print("Downloaded videos cleaned up successfully.")
+                print("Video creation completed successfully! Output saved as output.mp4")
             except Exception as e:
-                print("Error concatenating final clips:", e)
+                print(f"Error during final video creation: {e}")
+        else:
+            print("No clips to concatenate. Video creation aborted.")
+
 
 def main():
     load_dotenv()
